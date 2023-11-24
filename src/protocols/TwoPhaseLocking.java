@@ -105,8 +105,17 @@ class TwoPhaseLocking{
                                 
                                 finalSchedule.add("Aborting transaction " + matcher.group(2));
                             } else {
+                                /* Waiting */
                                 finalSchedule.add("Transaction " + matcher.group(2) + " waits for lock");
                                 waitQueue.add(operation);
+                                Iterator<String> iterator = schedule.iterator();
+                                while(iterator.hasNext()) {
+                                    String op = iterator.next();
+                                    if (op.contains(matcher.group(2))) {
+                                        iterator.remove();
+                                        waitQueue.add(op);
+                                    }
+                                }
                             }
                         }
                     }else if(matcher.group(1).equals("W")){
