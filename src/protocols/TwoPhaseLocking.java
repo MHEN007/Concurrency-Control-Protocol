@@ -96,9 +96,6 @@ class TwoPhaseLocking{
 
                                 releaseLocks(matcher.group(2));
 
-                                /* Remove remaining operation in schedule where it contains the number in matcher.group(2) */
-                                schedule.removeIf(lock -> lock.contains(matcher.group(2)+"("));
-
                                 while(!doneTransactions.get(Integer.parseInt(matcher.group(2))).isEmpty()){
                                     String op = doneTransactions.get(Integer.parseInt(matcher.group(2))).poll();
                                     schedule.add(op);
@@ -138,7 +135,7 @@ class TwoPhaseLocking{
                                     String op = iterator.next();
                                     if (op.contains(matcher.group(2))) {
                                         iterator.remove();
-                                        waitQueue.add(op);
+                                        doneTransactions.get(Integer.parseInt(matcher.group(2))).add(op);
                                     }
                                 }
 
@@ -211,9 +208,6 @@ class TwoPhaseLocking{
 
                                 releaseLocks(matcher.group(2));
 
-                                /* Remove remaining operation in schedule where it contains the number in matcher.group(2) */
-                                schedule.removeIf(lock -> lock.contains(matcher.group(2)+"("));
-
                                 while(!doneTransactions.get(Integer.parseInt(matcher.group(2))).isEmpty()){
                                     String op = doneTransactions.get(Integer.parseInt(matcher.group(2))).poll();
                                     schedule.add(op);
@@ -254,7 +248,7 @@ class TwoPhaseLocking{
                                     String op = iterator.next();
                                     if (op.contains(matcher.group(2))) {
                                         iterator.remove();
-                                        waitQueue.add(op);
+                                        doneTransactions.get(Integer.parseInt(matcher.group(2))).add(op);
                                     }
                                 }
 
@@ -294,7 +288,7 @@ class TwoPhaseLocking{
     }
 
     public static void main(String[] args) {
-        TwoPhaseLocking twoPhaseLocking = new TwoPhaseLocking("R1(X),W1(X),R3(X),W2(Y),R1(Y),C1,R2(X),W2(X),W3(X),C3,C2");
+        TwoPhaseLocking twoPhaseLocking = new TwoPhaseLocking("R1(X),W1(X),W3(Z),R1(Z),R3(X),W2(Y),R1(Y),C1,R2(X),W2(X),W3(X),C3,C2");
         twoPhaseLocking.scheduler();
     }
 }
