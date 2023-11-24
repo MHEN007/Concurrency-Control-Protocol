@@ -63,17 +63,8 @@ class TwoPhaseLocking{
         lockTable.removeIf(lock -> lock.startsWith("XL"+id));
 
         /* Because lock has been removed. Try to execute the waiting queue */
-
-    }
-
-    /*
-     * Scheduler
-     * Schedule the Transaction
-     * Schedule using automatic acquisation
-     */
-    public void scheduler(){
-        while(!schedule.isEmpty()) {
-            String operation = schedule.poll();
+        while(!waitQueue.isEmpty()) {
+            String operation = waitQueue.poll();
             Matcher matcher = this.schedulePattern.matcher(operation);
             if(matcher.matches()){
                 if(matcher.group(1) != null){
@@ -171,6 +162,122 @@ class TwoPhaseLocking{
                 }
             }
         }
+    }
+
+    /*
+     * Scheduler
+     * Schedule the Transaction
+     * Schedule using automatic acquisation
+     */
+    public void scheduler(){
+        while(!schedule.isEmpty()) {
+            String operation = schedule.poll();
+            Matcher matcher = this.schedulePattern.matcher(operation);
+            if(matcher.matches()){
+                if(matcher.group(1) != null){
+                    if(matcher.group(1).equals("R")){
+                        /* Check if there is an shared lock on this object
+                         * If there is and belongs to this transaction, proceed
+                         * If there is none, add the lock and proceed
+                         * If exists but doesn't belong to this transaction, give the lock to this transaction
+                         * If exists a exclusive lock, wait
+                         */
+                        if(this.exclusiveLockChecker(matcher.group(1), matcher.group(3), matcher.group(2))){
+                            doneTransactions.get(Integer.parseInt(matcher.group(2))).add(operation);
+                            finalSchedule.add("SL"+matcher.group(2)+"("+matcher.group(3)+")");
+                            finalSchedule.add(operation);
+                        }else{
+                            // Deadlock prevention using Wait and Die scheme
+                            if(isCurrentTransactionYounger(matcher.group(2), matcher.group(3))){
+                                /* Rollback */
+                                doneTransactions.get(Integer.parseInt(matcher.group(2))).add(operation);
+                                Iterator<String> iterator = schedule.iterator();
+                                while (iterator.hasNext()) {
+                                    String op = iterator.next();
+                                    if (op.contains(matcher.group(2))) {
+                                        iterator.remove();
+                                        doneTransactions.get(Integer.parseInt(matcher.group(2))).add(op);
+                                    }
+                                }
+
+                                releaseLocks(matcher.group(2));
+
+                                /* Remove remaining operation in schedule where it contains the number in matcher.group(2) */
+                                schedule.removeIf(lock -> lock.contains(matcher.group(2)+"("));
+
+                                while(!doneTransactions.get(Integer.parseInt(matcher.group(2))).isEmpty()){
+                                    String op = doneTransactions.get(Integer.parseInt(matcher.group(2))).poll();
+                                    schedule.add(op);
+                                }
+                                
+                                finalSchedule.add("Aborting transaction " + matcher.group(2));
+                            } else {
+                                /* Waiting */
+                                finalSchedule.add("Transaction " + matcher.group(2) + " waits for lock");
+                                waitQueue.add(operation);
+                                Iterator<String> iterator = schedule.iterator();
+                                while(iterator.hasNext()) {
+                                    String op = iterator.next();
+                                    if (op.contains(matcher.group(2))) {
+                                        iterator.remove();
+                                        waitQueue.add(op);
+                                    }
+                                }
+                            }
+                        }
+                    }else if(matcher.group(1).equals("W")){
+                        /* Check in SL if there is already a lock or not. 
+                         * If there already exist and is has the same id, remove the lock, upgrade to this lock
+                         * If there already exist and doesn't have the same id, wait until it exists
+                         * If there is none, proceed
+                         */
+                        if(this.exclusiveLockChecker(matcher.group(1), matcher.group(3), matcher.group(2))){
+                            lockTable.add("XL"+matcher.group(2)+"("+matcher.group(3)+")");
+                            doneTransactions.get(Integer.parseInt(matcher.group(2))).add(operation);
+                            finalSchedule.add("XL"+matcher.group(2)+"("+matcher.group(3)+")");
+                            finalSchedule.add(operation);
+                        }else{
+                            if(isCurrentTransactionYounger(matcher.group(2), matcher.group(3))){
+                                /* Rollback */
+                                doneTransactions.get(Integer.parseInt(matcher.group(2))).add(operation);
+                                Iterator<String> iterator = schedule.iterator();
+                                while (iterator.hasNext()) {
+                                    String op = iterator.next();
+                                    if (op.contains(matcher.group(2))) {
+                                        iterator.remove();
+                                        waitQueue.add(op);
+                                    }
+                                }
+
+                                while(!doneTransactions.get(Integer.parseInt(matcher.group(2))).isEmpty()){
+                                    String op = doneTransactions.get(Integer.parseInt(matcher.group(2))).poll();
+                                    schedule.add(op);
+                                }
+
+                                finalSchedule.add("Aborting transaction " + matcher.group(2));
+                            } else {
+                                /* Waiting */
+                                finalSchedule.add("Transaction " + matcher.group(2) + " waits for lock");
+                                waitQueue.add(operation);
+                                Iterator<String> iterator = schedule.iterator();
+                                while(iterator.hasNext()) {
+                                    String op = iterator.next();
+                                    if (op.contains(matcher.group(2))) {
+                                        iterator.remove();
+                                        waitQueue.add(op);
+                                    }
+                                }
+                            }
+                        }
+                    }
+
+                }else if(matcher.group(4) != null){
+                    finalSchedule.add(operation);
+                    releaseLocks(matcher.group(5));
+                    doneTransactions.get(Integer.parseInt(matcher.group(5))).add(operation);
+                }
+            }
+        }
 
         /* Print the full schedule */
         for (String operation : finalSchedule) {
@@ -179,7 +286,7 @@ class TwoPhaseLocking{
     }
 
     public static void main(String[] args) {
-        TwoPhaseLocking twoPhaseLocking = new TwoPhaseLocking("R1(X),R2(X),W2(X),W1(X),C1,C2");
+        TwoPhaseLocking twoPhaseLocking = new TwoPhaseLocking("R1(X),W1(X),R3(X),C1,R2(X),W2(X),W3(X),C3,C2");
         twoPhaseLocking.scheduler();
     }
 }
