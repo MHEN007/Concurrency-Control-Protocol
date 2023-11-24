@@ -83,6 +83,7 @@ class TwoPhaseLocking{
                             // Deadlock prevention using Wait and Die scheme
                             if(isCurrentTransactionYounger(matcher.group(2), matcher.group(3))){
                                 /* Rollback */
+                                finalSchedule.add("Aborting transaction " + matcher.group(2));
                                 doneTransactions.get(Integer.parseInt(matcher.group(2))).add(operation);
                                 Iterator<String> iterator = schedule.iterator();
                                 while (iterator.hasNext()) {
@@ -102,8 +103,6 @@ class TwoPhaseLocking{
                                     String op = doneTransactions.get(Integer.parseInt(matcher.group(2))).poll();
                                     schedule.add(op);
                                 }
-                                
-                                finalSchedule.add("Aborting transaction " + matcher.group(2));
                             } else {
                                 /* Waiting */
                                 finalSchedule.add("Transaction " + matcher.group(2) + " waits for lock");
@@ -132,6 +131,7 @@ class TwoPhaseLocking{
                         }else{
                             if(isCurrentTransactionYounger(matcher.group(2), matcher.group(3))){
                                 /* Rollback */
+                                finalSchedule.add("Aborting transaction " + matcher.group(2));
                                 doneTransactions.get(Integer.parseInt(matcher.group(2))).add(operation);
                                 Iterator<String> iterator = schedule.iterator();
                                 while (iterator.hasNext()) {
@@ -147,7 +147,6 @@ class TwoPhaseLocking{
                                     schedule.add(op);
                                 }
 
-                                finalSchedule.add("Aborting transaction " + matcher.group(2));
                             } else {
                                 /* Waiting */
                                 finalSchedule.add("Transaction " + matcher.group(2) + " waits for lock");
@@ -165,9 +164,9 @@ class TwoPhaseLocking{
                     }
 
                 }else if(matcher.group(4) != null){
+                    finalSchedule.add(operation);
                     releaseLocks(matcher.group(5));
                     doneTransactions.get(Integer.parseInt(matcher.group(5))).add(operation);
-                    finalSchedule.add(operation);
                 }
             }
         }
@@ -199,6 +198,7 @@ class TwoPhaseLocking{
                             // Deadlock prevention using Wait and Die scheme
                             if(isCurrentTransactionYounger(matcher.group(2), matcher.group(3))){
                                 /* Rollback */
+                                finalSchedule.add("Aborting transaction " + matcher.group(2));
                                 doneTransactions.get(Integer.parseInt(matcher.group(2))).add(operation);
                                 Iterator<String> iterator = schedule.iterator();
                                 while (iterator.hasNext()) {
@@ -219,7 +219,6 @@ class TwoPhaseLocking{
                                     schedule.add(op);
                                 }
                                 
-                                finalSchedule.add("Aborting transaction " + matcher.group(2));
                             } else {
                                 /* Waiting */
                                 finalSchedule.add("Transaction " + matcher.group(2) + " waits for lock");
@@ -248,6 +247,7 @@ class TwoPhaseLocking{
                         }else{
                             if(isCurrentTransactionYounger(matcher.group(2), matcher.group(3))){
                                 /* Rollback */
+                                finalSchedule.add("Aborting transaction " + matcher.group(2));
                                 doneTransactions.get(Integer.parseInt(matcher.group(2))).add(operation);
                                 Iterator<String> iterator = schedule.iterator();
                                 while (iterator.hasNext()) {
@@ -263,7 +263,6 @@ class TwoPhaseLocking{
                                     schedule.add(op);
                                 }
 
-                                finalSchedule.add("Aborting transaction " + matcher.group(2));
                             } else {
                                 /* Waiting */
                                 finalSchedule.add("Transaction " + matcher.group(2) + " waits for lock");
@@ -295,7 +294,7 @@ class TwoPhaseLocking{
     }
 
     public static void main(String[] args) {
-        TwoPhaseLocking twoPhaseLocking = new TwoPhaseLocking("R1(X),W1(X),R3(X),C1,R2(X),W2(X),W3(X),C3,C2");
+        TwoPhaseLocking twoPhaseLocking = new TwoPhaseLocking("R1(X),W1(X),R3(X),W2(Y),R1(Y),C1,R2(X),W2(X),W3(X),C3,C2");
         twoPhaseLocking.scheduler();
     }
 }
