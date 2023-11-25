@@ -19,7 +19,7 @@ class TwoPhaseLocking{
      * @param schedule Format as follows: Ri(X),Wi(X),Ci
      */
     public TwoPhaseLocking(String schedule){
-        this.schedule = new ArrayDeque<>(Arrays.asList(schedule.split(",")));
+        this.schedule = new ArrayDeque<>(Arrays.asList(schedule.split(";")));
         this.schedulePattern = Pattern.compile("([RW])(\\d+)\\((\\w)\\)|(C)(\\d+)");
         this.lockTable = new LinkedList<>();
         this.finalSchedule = new LinkedList<>();
@@ -32,9 +32,38 @@ class TwoPhaseLocking{
     }
 
     private boolean exclusiveLockChecker(String operation, String object, String id) {
-        if(operation.equals("R") || operation.equals("W")){
-            /* Check if there is an exclusive lock on the object */
-            return lockTable.stream().anyMatch(lock -> lock.endsWith("("+object+")")) ? false : true;
+        if(operation.equals("R")){
+            /* Check if there is an exclusive lock on the object from the same Ti*/
+            if(lockTable.contains("XL" + id + "(" + object + ")")){
+                return false;
+            }else{ 
+                /* check if there exists a exclusive lock on the object */  
+                Boolean check1 = lockTable.stream().anyMatch(lock -> lock.endsWith("("+object+")"));
+                Boolean check2 = lockTable.stream().anyMatch(lock -> lock.startsWith("XL"));
+                return check1 && check2 ? false : true;
+            }
+        }else if(operation.equals("W")){
+            /* Check if there are any exclusive locks on the object from the same Ti*/
+            if(lockTable.contains("XL" + id + "(" + object + ")")){
+                return true;
+            }else{
+                /* Check if there exists a exclusive lock on the object*/
+                Boolean check1 = lockTable.stream().anyMatch(lock -> lock.endsWith("("+object+")"));
+                Boolean check2 = lockTable.stream().anyMatch(lock -> lock.startsWith("XL"));
+                if(check1 && check2){
+                    return false;
+                }else{
+                    /* check if there exists a share lock where the id is not the same */
+                    long sharedLockCount = lockTable.stream()
+                                            .filter(lock -> lock.startsWith("SL") && lock.endsWith("(" + object + ")"))
+                                            .count();
+                    if(sharedLockCount <= 1){
+                        return true;
+                    }else{
+                        return false;
+                    }
+                }
+            }
         }else{
             return true;
         }
@@ -61,6 +90,7 @@ class TwoPhaseLocking{
     private void releaseLocks(String id){
         /* Remove all locks on lockTable and sharedLocks (both are queue with formats XLi(X) or SLi(X))*/
         lockTable.removeIf(lock -> lock.startsWith("XL"+id));
+        lockTable.removeIf(lock -> lock.startsWith("SL"+id));
 
         /* Because lock has been removed. Try to execute the waiting queue */
         while(!waitQueue.isEmpty()) {
@@ -77,6 +107,7 @@ class TwoPhaseLocking{
                          */
                         if(this.exclusiveLockChecker(matcher.group(1), matcher.group(3), matcher.group(2))){
                             doneTransactions.get(Integer.parseInt(matcher.group(2))).add(operation);
+                            lockTable.add("SL"+matcher.group(2)+"("+matcher.group(3)+")");
                             finalSchedule.add("SL"+matcher.group(2)+"("+matcher.group(3)+")");
                             finalSchedule.add(operation);
                         }else{
@@ -189,6 +220,7 @@ class TwoPhaseLocking{
                          */
                         if(this.exclusiveLockChecker(matcher.group(1), matcher.group(3), matcher.group(2))){
                             doneTransactions.get(Integer.parseInt(matcher.group(2))).add(operation);
+                            lockTable.add("SL"+matcher.group(2)+"("+matcher.group(3)+")");
                             finalSchedule.add("SL"+matcher.group(2)+"("+matcher.group(3)+")");
                             finalSchedule.add(operation);
                         }else{
@@ -288,7 +320,7 @@ class TwoPhaseLocking{
     }
 
     public static void main(String[] args) {
-        TwoPhaseLocking twoPhaseLocking = new TwoPhaseLocking("R1(X),W1(X),W3(Z),R1(Z),R3(X),W2(Y),R1(Y),C1,R2(X),W2(X),W3(X),C3,C2");
+        TwoPhaseLocking twoPhaseLocking = new TwoPhaseLocking("R1(X);R1(X);R2(X);R3(X);W1(X);C1;C2;C3");
         twoPhaseLocking.scheduler();
     }
 }
