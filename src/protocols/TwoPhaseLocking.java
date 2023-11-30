@@ -2,6 +2,7 @@ import java.util.*;
 import java.util.regex.*;
 
 class TwoPhaseLocking{
+    private ArrayList<String> startTime;
     public Deque<String> schedule;
     public ArrayList<Deque<String>> doneTransactions;
     public Deque<String> lockTable;
@@ -20,8 +21,25 @@ class TwoPhaseLocking{
         this.finalSchedule = new LinkedList<>();
         this.waitQueue = new LinkedList<>();
         this.doneTransactions = new ArrayList<>();
+        this.startTime = new ArrayList<>();
 
-        for (int i = 0; i < 10; i++){
+        /* Foreach unique object in schedule, initialize the timestamp as 0 */
+        for (String operation : this.schedule) {
+            Matcher matcher = schedulePattern.matcher(operation);
+            if(matcher.matches()){
+                if(matcher.group(2) != null){
+                    if(!startTime.contains(matcher.group(2))){
+                        startTime.add(matcher.group(2));
+                    }
+                }else if(matcher.group(5) != null){
+                    if(!startTime.contains(matcher.group(5))){
+                        startTime.add(matcher.group(5));
+                    }
+                }
+            }
+        }
+
+        for (int i = 0; i < 100; i++){
             this.doneTransactions.add(new LinkedList<>());
         }
     }
@@ -92,7 +110,7 @@ class TwoPhaseLocking{
 
     public boolean isCurrentTransactionYounger(String id, String object) {
         List<Integer> lockIds = getTransactionLockIds(this.lockTable, object);
-        return lockIds.stream().anyMatch(tranId -> Integer.parseInt(id) > tranId);  
+        return lockIds.stream().anyMatch(tranId -> this.startTime.indexOf(id) > this.startTime.indexOf(Integer.toString(tranId)));  
     }
 
     /*
@@ -161,6 +179,9 @@ class TwoPhaseLocking{
                                         String op = doneTransactions.get(Integer.parseInt(matcher.group(2))).poll();
                                         schedule.add(op);
                                     }
+
+                                    startTime.removeIf(id->id.equals(matcher.group(2)));
+                                    startTime.add(matcher.group(2));
                                     
                                 } else {
                                     /* Waiting */
@@ -201,6 +222,9 @@ class TwoPhaseLocking{
                                         String op = doneTransactions.get(Integer.parseInt(matcher.group(2))).poll();
                                         schedule.add(op);
                                     }
+
+                                    startTime.removeIf(id->id.equals(matcher.group(2)));
+                                    startTime.add(matcher.group(2));
 
                                 } else {
                                     /* Waiting */
