@@ -38,9 +38,8 @@ class TwoPhaseLocking{
                 return true;
             }else{ 
                 /* check if there exists a exclusive lock on the object */  
-                Boolean check1 = lockTable.stream().anyMatch(lock -> lock.endsWith("("+object+")"));
-                Boolean check2 = lockTable.stream().anyMatch(lock -> lock.startsWith("XL"));
-                return check1 && check2 ? false : true;
+                Boolean check1 = lockTable.stream().anyMatch(lock -> lock.endsWith("("+object+")") && lock.startsWith("XL"));
+                return check1 ? false : true;
             }
         }else if(operation.equals("W")){
             /* Check if there are any exclusive locks on the object from the same Ti*/
@@ -74,22 +73,26 @@ class TwoPhaseLocking{
     /*
      * Returns the ID of the owner of the lock on the object
      */
-    private static int getTransactionLockId(Deque<String> deque, String object) {
+    private static List<Integer> getTransactionLockIds(Deque<String> deque, String object) {
+        List<Integer> lockIds = new ArrayList<>();
+    
         for (String lock : deque) {
             if (lock.endsWith("(" + object + ")")) {
                 // Extract the number from the lock
                 int startIndex = lock.indexOf('L') + 1;  // Skip the 'L' character
                 int endIndex = lock.indexOf('(');
                 String numberStr = lock.substring(startIndex, endIndex);
-                return Integer.parseInt(numberStr);
+                int lockId = Integer.parseInt(numberStr);
+                lockIds.add(lockId);
             }
         }
-        return -1; // Object A not found in the deque
+    
+        return lockIds;
     }
 
-    public boolean isCurrentTransactionYounger(String id, String object){
-        int tran_id = getTransactionLockId(this.lockTable, object);
-        return Integer.parseInt(id) > tran_id ? true : false;
+    public boolean isCurrentTransactionYounger(String id, String object) {
+        List<Integer> lockIds = getTransactionLockIds(this.lockTable, object);
+        return lockIds.stream().anyMatch(tranId -> Integer.parseInt(id) > tranId);  
     }
 
     /*
@@ -113,87 +116,102 @@ class TwoPhaseLocking{
             Matcher matcher = this.schedulePattern.matcher(operation);
             if(matcher.matches()){
                 if(matcher.group(1) != null){
-                    if(matcher.group(1).equals("R")){
-                        /* Check if there is an shared lock on this object
-                         * If there is and belongs to this transaction, proceed
-                         * If there is none, add the lock and proceed
-                         * If exists but doesn't belong to this transaction, give the lock to this transaction
-                         * If exists a exclusive lock, wait
-                         */
-                        if(this.exclusiveLockChecker(matcher.group(1), matcher.group(3), matcher.group(2))){
-                            doneTransactions.get(Integer.parseInt(matcher.group(2))).add(operation);
-                            if(!lockTable.contains("SL"+matcher.group(2)+"("+matcher.group(3)+")"))
-                                lockTable.add("SL"+matcher.group(2)+"("+matcher.group(3)+")");
-                                finalSchedule.add("SL"+matcher.group(2)+"("+matcher.group(3)+")");
-                            finalSchedule.add(operation);
-                        }else{
-                            // Deadlock prevention using Wait and Die scheme
-                            if(isCurrentTransactionYounger(matcher.group(2), matcher.group(3))){
-                                /* Rollback */
-                                finalSchedule.add("Aborting transaction " + matcher.group(2));
-                                doneTransactions.get(Integer.parseInt(matcher.group(2))).add(operation);
-                                Iterator<String> iterator = schedule.iterator();
-                                while (iterator.hasNext()) {
-                                    String op = iterator.next();
-                                    if (op.contains(matcher.group(2))) {
-                                        iterator.remove();
-                                        doneTransactions.get(Integer.parseInt(matcher.group(2))).add(op);
-                                    }
-                                }
-
-                                releaseLocks(matcher.group(2));
-
-                                while(!doneTransactions.get(Integer.parseInt(matcher.group(2))).isEmpty()){
-                                    String op = doneTransactions.get(Integer.parseInt(matcher.group(2))).poll();
-                                    schedule.add(op);
-                                }
-                                
-                            } else {
-                                /* Waiting */
-                                finalSchedule.add("Transaction " + matcher.group(2) + " waits for lock");
-                                waitQueue.add(operation);
-                            }
-                        }
-                    }else if(matcher.group(1).equals("W")){
-                        /* Check in SL if there is already a lock or not. 
-                         * If there already exist and is has the same id, remove the lock, upgrade to this lock
-                         * If there already exist and doesn't have the same id, wait until it exists
-                         * If there is none, proceed
-                         */
-                        if(this.exclusiveLockChecker(matcher.group(1), matcher.group(3), matcher.group(2))){
-                            lockTable.add("XL"+matcher.group(2)+"("+matcher.group(3)+")");
-                            doneTransactions.get(Integer.parseInt(matcher.group(2))).add(operation);
-                            finalSchedule.add("XL"+matcher.group(2)+"("+matcher.group(3)+")");
-                            finalSchedule.add(operation);
-                        }else{
-                            if(isCurrentTransactionYounger(matcher.group(2), matcher.group(3))){
-                                /* Rollback */
-                                finalSchedule.add("Aborting transaction " + matcher.group(2));
-                                doneTransactions.get(Integer.parseInt(matcher.group(2))).add(operation);
-                                Iterator<String> iterator = schedule.iterator();
-                                while (iterator.hasNext()) {
-                                    String op = iterator.next();
-                                    if (op.contains(matcher.group(2))) {
-                                        iterator.remove();
-                                        doneTransactions.get(Integer.parseInt(matcher.group(2))).add(op);
-                                    }
-                                }
-
-                                releaseLocks(matcher.group(2));
-
-                                while(!doneTransactions.get(Integer.parseInt(matcher.group(2))).isEmpty()){
-                                    String op = doneTransactions.get(Integer.parseInt(matcher.group(2))).poll();
-                                    schedule.add(op);
-                                }
-
-                            } else {
-                                /* Waiting */
-                                finalSchedule.add("Transaction " + matcher.group(2) + " waits for lock");
-                                waitQueue.add(operation);
-                            }
+                    String check = this.waitQueue.stream().filter(wait -> wait.contains(matcher.group(2))).findFirst().orElse("");
+                    Boolean isNotWaiting = true;
+                    if(!check.isEmpty()){
+                        Matcher m1 = this.schedulePattern.matcher(check);
+                        if(m1.matches()){
+                            if(m1.group(1) != null)
+                                isNotWaiting = this.exclusiveLockChecker(m1.group(1), m1.group(3), m1.group(2));
                         }
                     }
+                    if(isNotWaiting){
+                        if(matcher.group(1).equals("R")){
+                            /* Check if there is an shared lock on this object
+                            * If there is and belongs to this transaction, proceed
+                            * If there is none, add the lock and proceed
+                            * If exists but doesn't belong to this transaction, give the lock to this transaction
+                            * If exists a exclusive lock, wait
+                            */
+                            if(this.exclusiveLockChecker(matcher.group(1), matcher.group(3), matcher.group(2))){
+                                doneTransactions.get(Integer.parseInt(matcher.group(2))).add(operation);
+                                if(!lockTable.contains("SL"+matcher.group(2)+"("+matcher.group(3)+")")){
+                                    lockTable.add("SL"+matcher.group(2)+"("+matcher.group(3)+")");
+                                    finalSchedule.add("SL"+matcher.group(2)+"("+matcher.group(3)+")");
+                                }
+                                finalSchedule.add(operation);
+                            }else{
+                                // Deadlock prevention using Wait and Die scheme
+                                if(isCurrentTransactionYounger(matcher.group(2), matcher.group(3))){
+                                    /* Rollback */
+                                    finalSchedule.add("Aborting transaction " + matcher.group(2));
+                                    doneTransactions.get(Integer.parseInt(matcher.group(2))).add(operation);
+                                    Iterator<String> iterator = schedule.iterator();
+                                    while (iterator.hasNext()) {
+                                        String op = iterator.next();
+                                        if (op.contains(matcher.group(2))) {
+                                            iterator.remove();
+                                            doneTransactions.get(Integer.parseInt(matcher.group(2))).add(op);
+                                        }
+                                    }
 
+                                    releaseLocks(matcher.group(2));
+
+                                    while(!doneTransactions.get(Integer.parseInt(matcher.group(2))).isEmpty()){
+                                        String op = doneTransactions.get(Integer.parseInt(matcher.group(2))).poll();
+                                        schedule.add(op);
+                                    }
+                                    
+                                } else {
+                                    /* Waiting */
+                                    finalSchedule.add("Transaction " + matcher.group(2) + " waits for lock");
+                                    waitQueue.add(operation);
+                                }
+                            }
+                        }else if(matcher.group(1).equals("W")){
+                            /* Check in SL if there is already a lock or not. 
+                            * If there already exist and is has the same id, remove the lock, upgrade to this lock
+                            * If there already exist and doesn't have the same id, wait until it exists
+                            * If there is none, proceed
+                            */
+                            if(this.exclusiveLockChecker(matcher.group(1), matcher.group(3), matcher.group(2))){
+                                doneTransactions.get(Integer.parseInt(matcher.group(2))).add(operation);
+                                if(!lockTable.contains("XL"+matcher.group(2)+"("+matcher.group(3)+")")){
+                                    lockTable.add("XL"+matcher.group(2)+"("+matcher.group(3)+")");
+                                    finalSchedule.add("XL"+matcher.group(2)+"("+matcher.group(3)+")");
+                                }
+                                finalSchedule.add(operation);
+                            }else{
+                                if(isCurrentTransactionYounger(matcher.group(2), matcher.group(3))){
+                                    /* Rollback */
+                                    finalSchedule.add("Aborting transaction " + matcher.group(2));
+                                    doneTransactions.get(Integer.parseInt(matcher.group(2))).add(operation);
+                                    Iterator<String> iterator = schedule.iterator();
+                                    while (iterator.hasNext()) {
+                                        String op = iterator.next();
+                                        if (op.contains(matcher.group(2))) {
+                                            iterator.remove();
+                                            doneTransactions.get(Integer.parseInt(matcher.group(2))).add(op);
+                                        }
+                                    }
+
+                                    releaseLocks(matcher.group(2));
+
+                                    while(!doneTransactions.get(Integer.parseInt(matcher.group(2))).isEmpty()){
+                                        String op = doneTransactions.get(Integer.parseInt(matcher.group(2))).poll();
+                                        schedule.add(op);
+                                    }
+
+                                } else {
+                                    /* Waiting */
+                                    finalSchedule.add("Transaction " + matcher.group(2) + " waits for lock");
+                                    waitQueue.add(operation);
+                                }
+                            }
+                        }
+                    }else{
+                        waitQueue.add(operation);
+                    }
                 }else if(matcher.group(4) != null){
                     // System.out.println("Wait " + waitQueue);
                     if(waitQueue.stream().anyMatch(lock -> lock.contains(matcher.group(5)))){
