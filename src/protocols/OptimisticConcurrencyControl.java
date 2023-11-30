@@ -9,7 +9,7 @@ public class OptimisticConcurrencyControl {
     private Deque<String> finalSchedule;
     private Pattern schedulePattern;
     private ArrayList<Deque<String>> doneTransactions;
-    private Map<String, Set<String>> writeSets;  // Added write sets
+    private Map<String, Set<String>> writeSets, readSets;  // Added write sets
     private Integer timestamp;
 
     public OptimisticConcurrencyControl(String schedule) {
@@ -20,6 +20,7 @@ public class OptimisticConcurrencyControl {
         this.finalSchedule = new ArrayDeque<>();
         this.doneTransactions = new ArrayList<>();
         this.writeSets = new HashMap<>();
+        this.readSets = new HashMap<>();
         this.timestamp = 0;
 
         this.schedule = new ArrayDeque<>(Arrays.asList(schedule.split(";")));
@@ -33,11 +34,13 @@ public class OptimisticConcurrencyControl {
                     validationTimestamp.putIfAbsent(matcher.group(2), 0);
                     finishTimestamp.putIfAbsent(matcher.group(2), 0);
                     writeSets.putIfAbsent(matcher.group(2), new HashSet<>());
+                    readSets.putIfAbsent(matcher.group(2), new HashSet<>());
                 } else if (matcher.group(4) != null) {
                     startTimestamp.putIfAbsent(matcher.group(5), 0);
                     validationTimestamp.putIfAbsent(matcher.group(5), 0);
                     finishTimestamp.putIfAbsent(matcher.group(5), 0);
                     writeSets.putIfAbsent(matcher.group(5), new HashSet<>());
+                    readSets.putIfAbsent(matcher.group(5), new HashSet<>());
                 }
             }
         }
@@ -48,16 +51,16 @@ public class OptimisticConcurrencyControl {
     }
 
     private boolean validateTransaction(String i) {
-        Set<String> writeSetI = writeSets.get(i);
+        Set<String> readSetI = readSets.get(i);
         for (String j : this.startTimestamp.keySet()) {
             if (!j.equals(i)) {
                 if (this.finishTimestamp.get(j) < this.startTimestamp.get(i) ||
                         (this.startTimestamp.get(j) < this.finishTimestamp.get(i)
                                 && this.finishTimestamp.get(i) < this.validationTimestamp.get(j))) {
-                    return true;
+                    /* Pass */
                 } else {
                     Set<String> writeSetJ = writeSets.get(j);
-                    if (!Collections.disjoint(writeSetI, writeSetJ)) {
+                    if (!Collections.disjoint(readSetI, writeSetJ)) {
                         return false;  // There is an intersection in the write sets
                     }
                 }
@@ -81,8 +84,11 @@ public class OptimisticConcurrencyControl {
                         this.startTimestamp.put(transactionId, timestamp);
                     }
                     this.doneTransactions.get(Integer.parseInt(transactionId)).add(op);
-                    if(matcher.group(1).equals("W"))
-                        this.writeSets.get(transactionId).add(matcher.group(3)); // Add to write on write operation
+                    if(matcher.group(1).equals("W")){
+                        this.writeSets.get(transactionId).add(matcher.group(3));
+                    }else if(matcher.group(1).equals("R")){
+                        this.readSets.get(transactionId).add(matcher.group(3));
+                    }
                     this.finalSchedule.add(op);
                 } else if (matcher.group(4) != null) {
                     String transactionId = matcher.group(5);
@@ -108,7 +114,9 @@ public class OptimisticConcurrencyControl {
 
                         /* Empty the writeset on a given id */
                         this.writeSets.get(transactionId).clear();
+                        this.readSets.get(transactionId).clear();
                     } else {
+                        timestamp++;
                         this.finalSchedule.add(op);
                         this.finishTimestamp.put(transactionId, timestamp);
                     }
@@ -123,7 +131,7 @@ public class OptimisticConcurrencyControl {
     }
 
     public static void main(String[] args) {
-        OptimisticConcurrencyControl occ = new OptimisticConcurrencyControl("R1(X);W2(X);W2(Y);W3(Y);W1(X);C1;C2;C3");
+        OptimisticConcurrencyControl occ = new OptimisticConcurrencyControl("R1(a);R2(b);W1(b);W2(a);C1;C2");
         occ.scheduler();
     }
 }
