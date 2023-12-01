@@ -289,5 +289,7 @@ public class TwoPhaseLocking{
 
         TwoPhaseLocking twoPhaseLocking = new TwoPhaseLocking(scanner.nextLine());
         twoPhaseLocking.scheduler();
+
+        scanner.close();
     }
 }

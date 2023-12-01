@@ -139,8 +139,10 @@ public class OptimisticConcurrencyControl {
         }
 
         /* Print the full schedule */
+        System.out.println("=================== ");
+        System.out.println("Final Schedule: ");
         for (String operation : finalSchedule) {
-            System.out.print(operation + "\n");
+            System.out.print(operation + " ");
         }
     }
 
