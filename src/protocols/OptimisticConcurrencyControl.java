@@ -93,8 +93,10 @@ public class OptimisticConcurrencyControl {
                     }
                     this.doneTransactions.get(Integer.parseInt(transactionId)).add(op);
                     if(matcher.group(1).equals("W")){
+                        System.out.println("READ OF " + matcher.group(3) + " BY T" + matcher.group(2));
                         this.writeSets.get(transactionId).add(matcher.group(3));
                     }else if(matcher.group(1).equals("R")){
+                        System.out.println("LOCAL WRITE OF " + matcher.group(3) + " BY T" + matcher.group(2));
                         this.readSets.get(transactionId).add(matcher.group(3));
                     }
                     this.finalSchedule.add(op);
@@ -103,7 +105,8 @@ public class OptimisticConcurrencyControl {
                     this.validationTimestamp.put(transactionId, timestamp);
                     if (!validateTransaction(transactionId)) {
                         /* ROLL BACK ALL THE TRANSACTION FOR THE ID */
-                        this.finalSchedule.add("ROLLBACK T" + transactionId);
+                        System.out.println("ABORTING T" + transactionId);
+                        this.finalSchedule.add("A" + transactionId);
 
                         Iterator<String> it = this.schedule.iterator();
                         doneTransactions.get(Integer.parseInt(transactionId)).add(op);
@@ -127,6 +130,7 @@ public class OptimisticConcurrencyControl {
                         this.startTimestamp.put(transactionId, timestamp);
                     } else {
                         timestamp++;
+                        System.out.println("COMMITTING T"+transactionId + ". WRITING LOCAL WRITE TO DB");
                         this.finalSchedule.add(op);
                         this.finishTimestamp.put(transactionId, timestamp);
                     }
@@ -141,7 +145,12 @@ public class OptimisticConcurrencyControl {
     }
 
     public static void main(String[] args) {
-        OptimisticConcurrencyControl occ = new OptimisticConcurrencyControl("R1(X);R2(X);W1(X);W2(X);W3(X);C1;C2;C3");
+        Scanner sc = new Scanner(System.in);
+        System.out.println("Masukkan schedule: ");
+        String schedule = sc.nextLine();
+        OptimisticConcurrencyControl occ = new OptimisticConcurrencyControl(schedule);
         occ.scheduler();
+
+        sc.close();
     }
 }

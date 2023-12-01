@@ -1,7 +1,7 @@
 import java.util.*;
 import java.util.regex.*;
 
-class TwoPhaseLocking{
+public class TwoPhaseLocking{
     private ArrayList<String> startTime;
     public Deque<String> schedule;
     public ArrayList<Deque<String>> doneTransactions;
@@ -73,6 +73,9 @@ class TwoPhaseLocking{
                                             .filter(lock -> lock.startsWith("SL") && lock.endsWith("(" + object + ")"))
                                             .count();
                     if(lockTable.contains("SL"+id+"("+object+")") && sharedLockCount == 1){
+                        System.out.println("UPGRADING SHARED LOCK ON " + object + " OF T" + id);
+                        lockTable.remove("SL"+id+"("+object+")");
+                        finalSchedule.add("UL"+id+"("+object+")");
                         return true;
                     }else{
                         if(sharedLockCount < 1){
@@ -119,6 +122,7 @@ class TwoPhaseLocking{
      */
     private void releaseLocks(String id){
         /* Remove all locks on lockTable and sharedLocks (both are queue with formats XLi(X) or SLi(X))*/
+        System.out.println("RELEASING LOCKS ON T"+id);
         lockTable.removeIf(lock -> lock.startsWith("XL"+id));
         lockTable.removeIf(lock -> lock.startsWith("SL"+id));
     }
@@ -154,15 +158,18 @@ class TwoPhaseLocking{
                             if(this.exclusiveLockChecker(matcher.group(1), matcher.group(3), matcher.group(2))){
                                 doneTransactions.get(Integer.parseInt(matcher.group(2))).add(operation);
                                 if(!lockTable.contains("SL"+matcher.group(2)+"("+matcher.group(3)+")")){
+                                    System.out.println("GRANTING SHARED LOCK ON " + matcher.group(3) + " TO T"+matcher.group(2));
                                     lockTable.add("SL"+matcher.group(2)+"("+matcher.group(3)+")");
                                     finalSchedule.add("SL"+matcher.group(2)+"("+matcher.group(3)+")");
                                 }
+                                System.out.println("READ OF " + matcher.group(3) + " BY T" + matcher.group(2));
                                 finalSchedule.add(operation);
                             }else{
                                 // Deadlock prevention using Wait and Die scheme
                                 if(isCurrentTransactionYounger(matcher.group(2), matcher.group(3))){
                                     /* Rollback */
-                                    finalSchedule.add("Aborting transaction " + matcher.group(2));
+                                    System.out.println("Aborting transaction " + matcher.group(2));
+                                    finalSchedule.add("A"+matcher.group(2));
                                     doneTransactions.get(Integer.parseInt(matcher.group(2))).add(operation);
                                     Iterator<String> iterator = schedule.iterator();
                                     while (iterator.hasNext()) {
@@ -185,7 +192,7 @@ class TwoPhaseLocking{
                                     
                                 } else {
                                     /* Waiting */
-                                    finalSchedule.add("Transaction " + matcher.group(2) + " waits for lock");
+                                    System.out.println("T" + matcher.group(2) + " WAITS FOR LOCK");
                                     waitQueue.add(operation);
                                 }
                             }
@@ -198,14 +205,17 @@ class TwoPhaseLocking{
                             if(this.exclusiveLockChecker(matcher.group(1), matcher.group(3), matcher.group(2))){
                                 doneTransactions.get(Integer.parseInt(matcher.group(2))).add(operation);
                                 if(!lockTable.contains("XL"+matcher.group(2)+"("+matcher.group(3)+")")){
+                                    System.out.println("GRANTING EXCLUSIVE LOCK ON " + matcher.group(3) + " TO T"+matcher.group(2));
                                     lockTable.add("XL"+matcher.group(2)+"("+matcher.group(3)+")");
                                     finalSchedule.add("XL"+matcher.group(2)+"("+matcher.group(3)+")");
                                 }
+                                System.out.println("WRITE OF " + matcher.group(3) + " BY T" + matcher.group(2));
                                 finalSchedule.add(operation);
                             }else{
                                 if(isCurrentTransactionYounger(matcher.group(2), matcher.group(3))){
                                     /* Rollback */
-                                    finalSchedule.add("Aborting transaction " + matcher.group(2));
+                                    System.out.println("Aborting transaction " + matcher.group(2));
+                                    finalSchedule.add("A" + matcher.group(2));
                                     doneTransactions.get(Integer.parseInt(matcher.group(2))).add(operation);
                                     Iterator<String> iterator = schedule.iterator();
                                     while (iterator.hasNext()) {
@@ -228,7 +238,7 @@ class TwoPhaseLocking{
 
                                 } else {
                                     /* Waiting */
-                                    finalSchedule.add("Transaction " + matcher.group(2) + " waits for lock");
+                                    System.out.println("T" + matcher.group(2) + " WAITS FOR LOCK");
                                     waitQueue.add(operation);
                                 }
                             }
@@ -241,6 +251,7 @@ class TwoPhaseLocking{
                     if(waitQueue.stream().anyMatch(lock -> lock.contains(matcher.group(5)))){
                         waitQueue.add(operation);
                     }else{
+                        System.out.println("COMMITTING T"+matcher.group(5));
                         finalSchedule.add(operation);
                         releaseLocks(matcher.group(5));
                         doneTransactions.get(Integer.parseInt(matcher.group(5))).add(operation);
@@ -265,13 +276,21 @@ class TwoPhaseLocking{
         }
 
         /* Print the full schedule */
+        System.out.println("=================== ");
+        System.out.println("Final Schedule: ");
         for (String operation : finalSchedule) {
-            System.out.print(operation + "\n");
+            System.out.print(operation + " ");
         }
     }
 
     public static void main(String[] args) {
-        TwoPhaseLocking twoPhaseLocking = new TwoPhaseLocking("R1(X);W2(X);W2(Y);W3(Y);W1(X);C1;C2;C3");
+        Scanner sc = new Scanner(System.in);
+
+        System.out.print("Masukkan schedule: ");
+        String schedule = sc.nextLine();
+        TwoPhaseLocking twoPhaseLocking = new TwoPhaseLocking(schedule);
         twoPhaseLocking.scheduler();
+
+        sc.close();
     }
 }
