@@ -50,24 +50,32 @@ public class OptimisticConcurrencyControl {
         }
     }
 
-    private boolean validateTransaction(String i) {
-        Set<String> readSetI = readSets.get(i);
-        for (String j : this.startTimestamp.keySet()) {
-            if (!j.equals(i)) {
-                if (this.finishTimestamp.get(j) < this.startTimestamp.get(i) ||
-                        (this.startTimestamp.get(j) < this.finishTimestamp.get(i)
-                                && this.finishTimestamp.get(i) < this.validationTimestamp.get(j))) {
-                    /* Pass */
-                } else {
-                    Set<String> writeSetJ = writeSets.get(j);
-                    if (!Collections.disjoint(readSetI, writeSetJ)) {
-                        return false;  // There is an intersection in the write sets
+    /*
+     * Validate a given transaction j against other transaction i
+     * @param j, transaction id that is about to be committed
+     */
+    private boolean validateTransaction(String j) {
+        boolean returnVal = true;
+        Set<String> readSetJ = readSets.get(j);
+        for (String i : this.startTimestamp.keySet()) {
+            if (!i.equals(j)) {
+                if(this.validationTimestamp.get(i) < this.validationTimestamp.get(j)){
+                    if (this.finishTimestamp.get(i) < this.startTimestamp.get(j)) {
+                        /* Pass */
+                    } else if (this.startTimestamp.get(j) < this.finishTimestamp.get(i) && this.finishTimestamp.get(i) < this.validationTimestamp.get(j)) {
+                        Set<String> writeSetI = writeSets.get(i);
+                        if (!Collections.disjoint(writeSetI, readSetJ)) {
+                            returnVal = false;
+                            break;
+                        }
+                    } else {
+                        returnVal = false;
+                        break;
                     }
                 }
             }
         }
-
-        return true;
+        return returnVal;
     }
 
     public void scheduler() {
@@ -115,6 +123,8 @@ public class OptimisticConcurrencyControl {
                         /* Empty the writeset on a given id */
                         this.writeSets.get(transactionId).clear();
                         this.readSets.get(transactionId).clear();
+                        timestamp++;
+                        this.startTimestamp.put(transactionId, timestamp);
                     } else {
                         timestamp++;
                         this.finalSchedule.add(op);
@@ -131,7 +141,7 @@ public class OptimisticConcurrencyControl {
     }
 
     public static void main(String[] args) {
-        OptimisticConcurrencyControl occ = new OptimisticConcurrencyControl("R1(a);R2(b);W1(b);W2(a);C1;C2");
+        OptimisticConcurrencyControl occ = new OptimisticConcurrencyControl("R1(X);R2(X);W1(X);W2(X);W3(X);C1;C2;C3");
         occ.scheduler();
     }
 }
