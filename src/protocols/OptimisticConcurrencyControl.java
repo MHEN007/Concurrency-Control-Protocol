@@ -51,17 +51,31 @@ public class OptimisticConcurrencyControl {
     }
 
     private boolean validateTransaction(String i) {
-        Set<String> readSetI = readSets.get(i);
+        Set<String> writeSetI = writeSets.get(i);
         for (String j : this.startTimestamp.keySet()) {
             if (!j.equals(i)) {
-                if (this.finishTimestamp.get(j) < this.startTimestamp.get(i) ||
-                        (this.startTimestamp.get(j) < this.finishTimestamp.get(i)
-                                && this.finishTimestamp.get(i) < this.validationTimestamp.get(j))) {
-                    /* Pass */
-                } else {
-                    Set<String> writeSetJ = writeSets.get(j);
-                    if (!Collections.disjoint(readSetI, writeSetJ)) {
-                        return false;  // There is an intersection in the write sets
+                // if (this.finishTimestamp.get(i) < this.startTimestamp.get(j) ||
+                //         (this.startTimestamp.get(i) < this.finishTimestamp.get(j)
+                //                 && this.finishTimestamp.get(j) < this.validationTimestamp.get(i))) {
+                //     /* Pass */
+                // } else {
+                //     Set<String> writeSetJ = writeSets.get(j);
+                //     if (!Collections.disjoint(readSetI, writeSetJ)) {
+                //         return false;  // There is an intersection in the write sets
+                //     }
+                //     if (!Collections.disjoint(writeSetI, writeSetJ)) {
+                //         return false;  // There is an intersection in the write sets
+                //     }
+                // }
+                if (this.finishTimestamp.get(i) < this.startTimestamp.get(j)) {
+                    // System.out.println("finishTimestampI: " + this.finishTimestamp.get(i) + " startTimestampJ: " + this.startTimestamp.get(j));
+                    return true;
+                } if (this.startTimestamp.get(j) < this.finishTimestamp.get(i) 
+                && this.finishTimestamp.get(i) < this.validationTimestamp.get(j)) {
+                    Set<String> readSetJ = readSets.get(j);
+                    // System.out.println("readSetJ: " + readSetJ + " writeSetI: " + writeSetI);
+                    if (!Collections.disjoint(writeSetI, readSetJ)) {
+                        return false;
                     }
                 }
             }
@@ -131,7 +145,7 @@ public class OptimisticConcurrencyControl {
     }
 
     public static void main(String[] args) {
-        OptimisticConcurrencyControl occ = new OptimisticConcurrencyControl("R1(a);R2(b);W1(b);W2(a);C1;C2");
+        OptimisticConcurrencyControl occ = new OptimisticConcurrencyControl("R1(X);R2(X);W1(X);W2(X);W3(X);C1;C2;C3");
         occ.scheduler();
     }
 }
