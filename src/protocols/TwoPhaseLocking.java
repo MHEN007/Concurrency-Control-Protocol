@@ -284,13 +284,10 @@ public class TwoPhaseLocking{
     }
 
     public static void main(String[] args) {
-        Scanner sc = new Scanner(System.in);
+        System.out.println("Masukkan schedule (diakhiri dengan ;) : ");
+        Scanner scanner = new Scanner(System.in);
 
-        System.out.print("Masukkan schedule: ");
-        String schedule = sc.nextLine();
-        TwoPhaseLocking twoPhaseLocking = new TwoPhaseLocking(schedule);
+        TwoPhaseLocking twoPhaseLocking = new TwoPhaseLocking(scanner.nextLine());
         twoPhaseLocking.scheduler();
-
-        sc.close();
     }
 }

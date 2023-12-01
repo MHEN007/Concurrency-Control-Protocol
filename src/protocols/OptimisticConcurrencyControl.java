@@ -145,12 +145,15 @@ public class OptimisticConcurrencyControl {
     }
 
     public static void main(String[] args) {
-        Scanner sc = new Scanner(System.in);
-        System.out.println("Masukkan schedule: ");
-        String schedule = sc.nextLine();
-        OptimisticConcurrencyControl occ = new OptimisticConcurrencyControl(schedule);
-        occ.scheduler();
+        System.out.println("Masukkan schedule (diakhiri dengan ;) : ");
+        Scanner scanner = new Scanner(System.in);
+        String input = scanner.nextLine();
 
-        sc.close();
+        OptimisticConcurrencyControl scheduler = new OptimisticConcurrencyControl(input);
+        scheduler.scheduler();
+
+        scanner.close();
+
+        // Contoh : R1(A);R2(A);W1(A);W2(A);C1;C2;
     }
 }
