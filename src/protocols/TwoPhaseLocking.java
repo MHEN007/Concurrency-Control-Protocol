@@ -271,7 +271,14 @@ class TwoPhaseLocking{
     }
 
     public static void main(String[] args) {
-        TwoPhaseLocking twoPhaseLocking = new TwoPhaseLocking("R1(X);W2(X);W2(Y);W3(Y);W1(X);C1;C2;C3");
+        System.out.println("Masukkan schedule (diakhiri dengan ;) : ");
+        Scanner scanner = new Scanner(System.in);
+
+        TwoPhaseLocking twoPhaseLocking = new TwoPhaseLocking(scanner.nextLine());
         twoPhaseLocking.scheduler();
+
+        scanner.close();
+
+        // R1(X);W2(X);W2(Y);W3(Y);W1(X);C1;C2;C3
     }
 }

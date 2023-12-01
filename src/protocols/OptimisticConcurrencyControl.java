@@ -131,7 +131,15 @@ public class OptimisticConcurrencyControl {
     }
 
     public static void main(String[] args) {
-        OptimisticConcurrencyControl occ = new OptimisticConcurrencyControl("R1(a);R2(b);W1(b);W2(a);C1;C2");
-        occ.scheduler();
+        System.out.println("Masukkan schedule (diakhiri dengan ;) : ");
+        Scanner scanner = new Scanner(System.in);
+        String input = scanner.nextLine();
+
+        OptimisticConcurrencyControl scheduler = new OptimisticConcurrencyControl(input);
+        scheduler.scheduler();
+
+        scanner.close();
+
+        // Contoh : R1(A);R2(A);W1(A);W2(A);C1;C2;
     }
 }

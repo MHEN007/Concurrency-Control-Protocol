@@ -152,7 +152,15 @@ public class MVCC {
     }
 
     public static void main(String[] args) {
-        MVCC mvcc = new MVCC("R1(X);W3(X);R2(Y);W2(Y);W1(Y);W1(X);C1;C2;C3");
+        System.out.println("Masukkan schedule (diakhiri dengan ;) : ");
+        Scanner scanner = new Scanner(System.in);
+        String input = scanner.nextLine();
+
+        MVCC mvcc = new MVCC(input);
         mvcc.scheduler();
+
+        scanner.close();
+        // MVCC mvcc = new MVCC("R5(A);R2(B);R1(B);W3(B);W3(C);R5(C);R2(C);R1(A);R4(D);W3(D);W5    (B);W5(C)");
+        // mvcc.scheduler();
     }
 }
